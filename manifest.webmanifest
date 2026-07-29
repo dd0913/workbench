@@ -1,0 +1,13 @@
+{
+  "name": "我的工作台",
+  "short_name": "工作台",
+  "description": "个人工作台 - 每日打卡、番茄钟、阅读计时",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f0f5fb",
+  "theme_color": "#5b8def",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
