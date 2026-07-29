@@ -872,7 +872,8 @@ body {
       <button onclick="showTheme();toggleSettings()">🎨 主题设置</button>
       <button onclick="showSync();toggleSettings()">☁️ 云端同步</button>
       <button onclick="exportAll();toggleSettings()">📤 导出备份</button>
-      <button onclick="document.getElementById('importF').click();toggleSettings()">📥 导入恢复</button>
+      <button onclick="copyAll();toggleSettings()">📋 复制数据</button>
+      <button onclick="showImportPaste();toggleSettings()">📥 粘贴导入</button>
     </div>
     <input type="file" id="importF" accept=".json" style="display:none" onchange="importAll(this)">
     <button class="ns-btn" onclick="toggleSettings()"><span class="ns-icon">⚙️</span><span class="ns-text">工作台设置</span></button>
@@ -984,6 +985,21 @@ body {
       设置：GitHub → Settings → Developer settings → Tokens → 创建 token（勾选 gist）
     </p>
     <button class="btn btn-primary" style="width:100%;margin-top:8px;background:#94a3b8;" onclick="closeSync()">关闭</button>
+  </div>
+</div>
+
+<!-- 粘贴导入弹窗 -->
+<div class="theme-overlay" id="pasteOverlay">
+  <div class="theme-panel" style="max-width:400px;">
+    <h3>📥 粘贴导入</h3>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;text-align:center;">
+      在另一设备上复制数据后，在此粘贴即可同步
+    </p>
+    <textarea id="pasteInput" placeholder="在此粘贴备份数据..." style="width:100%;height:120px;padding:10px;border:1.5px solid #e8ecf2;border-radius:10px;font-size:12px;resize:vertical;"></textarea>
+    <div style="display:flex;gap:8px;margin-top:10px;">
+      <button class="btn btn-primary" style="flex:1;background:#6dd5a8;" onclick="doPasteImport()">📥 导入数据</button>
+      <button class="btn btn-primary" style="flex:1;background:#94a3b8;" onclick="closePaste()">关闭</button>
+    </div>
   </div>
 </div>
 
@@ -2185,12 +2201,17 @@ async function autoSync() {
 }
 
 // ========== 导出导入 ==========
-function exportAll() {
+function getAllDataObj() {
   const all = {};
   for (let i = 0; i < localStorage.length; i++) {
     const k = localStorage.key(i);
     if (k && k.startsWith(P)) { try { all[k] = JSON.parse(localStorage.getItem(k)); } catch(e) { all[k] = localStorage.getItem(k); } }
   }
+  return all;
+}
+
+function exportAll() {
+  const all = getAllDataObj();
   const blob = new Blob([JSON.stringify(all,null,2)], {type:'application/json'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -2199,6 +2220,50 @@ function exportAll() {
   a.href = url; document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
   toast('📤 数据已导出！');
+}
+
+async function copyAll() {
+  const all = getAllDataObj();
+  const txt = JSON.stringify(all);
+  try {
+    await navigator.clipboard.writeText(txt);
+    toast('📋 数据已复制到剪贴板！可粘贴到另一设备');
+  } catch(e) {
+    // 降级方案：显示文本让用户手动复制
+    showPasteOverlayWithData(txt);
+  }
+}
+
+function showPasteOverlayWithData(txt) {
+  const el = document.getElementById('pasteOverlay');
+  document.getElementById('pasteInput').value = txt;
+  el.classList.add('show');
+  toast('请长按全选并复制上面的文本');
+}
+
+function showImportPaste() {
+  document.getElementById('pasteInput').value = '';
+  document.getElementById('pasteOverlay').classList.add('show');
+}
+
+function closePaste() {
+  document.getElementById('pasteOverlay').classList.remove('show');
+}
+
+function doPasteImport() {
+  const raw = document.getElementById('pasteInput').value.trim();
+  if (!raw) { toast('请先粘贴数据'); return; }
+  try {
+    const d = JSON.parse(raw);
+    if (!confirm('云端数据将覆盖本地数据，确定导入？')) return;
+    const keepToken = ld('sync_token', '');
+    const keepGist = ld('sync_gist', '');
+    Object.entries(d).forEach(([k,v]) => { try { localStorage.setItem(k, typeof v==='string'?v:JSON.stringify(v)); } catch(e) {} });
+    if (keepToken) sv('sync_token', keepToken);
+    if (keepGist) sv('sync_gist', keepGist);
+    toast('✅ 导入成功，刷新中...');
+    setTimeout(() => location.reload(), 800);
+  } catch(e) { toast('数据格式不正确，请重新粘贴'); }
 }
 
 function importAll(input) {
